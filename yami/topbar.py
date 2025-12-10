@@ -50,11 +50,25 @@ class TopBar(ctk.CTkFrame):
             image=parent.music_icon,
         )
 
+        self.lyric_editor = ctk.CTkButton(
+            self,
+            command=self.toggle_lyric_editor,
+            text="制作歌词",
+            font=("roboto", 15),
+            width=80,
+            image=parent.music_icon,
+        )
+
         # WIDGET PLACEMENT
         self.open_folder.grid(row=0, column=1, sticky="w", pady=5, padx=10)
         self.music_downloader.grid(row=0, column=2, sticky="w", pady=5, padx=10)
-        self.yami.grid(row=0, column=3, sticky="w", pady=5, padx=10)
+        self.lyric_editor.grid(row=0, column=3, sticky="w", pady=5, padx=10)
+        self.yami.grid(row=0, column=4, sticky="w", pady=5, padx=10)
         logging.debug("initialized topbar")
+
+    def toggle_lyric_editor(self):
+        """Toggle lyric editor mode"""
+        self.parent.toggle_lyric_editor_mode()
 
     # FOR ADDING SONGS TO PLAYLIST
     """TODO MAKE IT SMALLER AND SIMPLER"""
