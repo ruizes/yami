@@ -40,6 +40,7 @@ class MusicPlayer(ctk.CTk):
         # STATE
         self.playlist = []
         self.current_folder = ""
+        self.is_3d_mode = False
 
         self.loop = loop if loop is not None else asyncio.new_event_loop()
         self.downloader = spotdl.Downloader(spotdl.DownloaderOptions(threads=2))
@@ -207,6 +208,7 @@ class MusicPlayer(ctk.CTk):
         self.playlist_frame = PlaylistFrame(self)
         self.bottom_frame = BottomFrame(self)
         self.cover_art_frame = CoverArtFrame(self)
+        self.sound_3d_frame = None
 
     def setup_keybindings(self):
         """
@@ -229,6 +231,40 @@ class MusicPlayer(ctk.CTk):
         self.playlist_frame.pack(side=tk.RIGHT)
         self.cover_art_frame.pack(side=tk.LEFT, padx=10)
         logging.debug("widgets packed")
+    
+    def toggle_3d_sound_mode(self):
+        """Toggle between normal mode and 3D sound mode"""
+        try:
+            self.is_3d_mode = not self.is_3d_mode
+            
+            if self.is_3d_mode:
+                # Switch to 3D sound mode
+                self.cover_art_frame.pack_forget()
+                if self.sound_3d_frame is None:
+                    try:
+                        from .sound_3d import Sound3DFrame
+                        self.sound_3d_frame = Sound3DFrame(self)
+                    except Exception as e:
+                        print(f"Error creating 3D sound frame: {e}")
+                        self.is_3d_mode = False
+                        return
+                self.sound_3d_frame.pack(side=tk.LEFT, padx=10, fill=tk.BOTH, expand=True)
+                self.topbar.sound_3d.configure(text="返回普通")
+            else:
+                # Switch back to normal mode
+                if self.sound_3d_frame is not None:
+                    self.sound_3d_frame.pack_forget()
+                self.cover_art_frame.pack(side=tk.LEFT, padx=10)
+                self.topbar.sound_3d.configure(text="3D 音效")
+                # Reset audio parameters
+                try:
+                    self.music.audio_set_pan(0.0)
+                    self.music.audio_set_volume(100)
+                except Exception as e:
+                    print(f"Error resetting audio parameters: {e}")
+        except Exception as e:
+            print(f"Error toggling 3D sound mode: {e}")
+            self.is_3d_mode = not self.is_3d_mode
 
     def update_loop(self):
         self.loop.call_soon(self.loop.stop)
