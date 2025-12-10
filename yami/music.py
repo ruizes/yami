@@ -19,6 +19,7 @@ from .playlist import PlaylistFrame
 from .control import ControlBar
 from .cover_art import CoverArtFrame
 from .progress import BottomFrame
+from .lyric_editor import LyricEditor
 from .util import GEOMETRY, TITLE, PlayerState, EVENT_INTERVAL, make_time_string
 
 
@@ -40,7 +41,9 @@ class MusicPlayer(ctk.CTk):
         # STATE
         self.playlist = []
         self.current_folder = ""
-
+        self.playlist_index = 0
+        self.is_editor_mode = False
+        self.lyric_editor_frame = None
         self.loop = loop if loop is not None else asyncio.new_event_loop()
         self.downloader = spotdl.Downloader(spotdl.DownloaderOptions(threads=2))
         spotdl.SpotifyClient.init(
@@ -49,6 +52,8 @@ class MusicPlayer(ctk.CTk):
         )
 
         self.initialize_vlc()
+        self.media_list: vlc.MediaList = self.vlc_instance.media_list_new()
+        self.music_list_player.set_media_list(self.media_list)
 
         # TKINTER SETUP
         self.setup_icons()
@@ -66,12 +71,22 @@ class MusicPlayer(ctk.CTk):
 
     def update(self, event=None):
         if self.music_list_player.get_state() == vlc.State.Playing:
-
             song_position = self.music.get_position()
             self.bottom_frame.progress_bar.set(song_position)
-
+            
+            current_time_ms = self.music.get_time()
+            total_seconds = current_time_ms / 1000
+            minutes = int(total_seconds // 60)
+            seconds = total_seconds % 60
+            
+            # Update main playback label
             self.control_bar.playback_label.configure(
                 text=make_time_string(song_position, self.music.get_length() // 1000)
+            )
+            
+            # Update current time display in lyric frame
+            self.current_time_label.configure(
+                text=f"{minutes:02d}:{seconds:06.3f}"
             )
         self.after(EVENT_INTERVAL, self.update)
 
@@ -167,6 +182,15 @@ class MusicPlayer(ctk.CTk):
 
     def get_song_position(self) -> float:
         return self.music.get_position()
+    
+    def get_current_time_ms(self) -> float:
+        """Get current playback time in milliseconds"""
+        return self.music.get_time()
+    
+    def seek_to_time(self, time_ms: int):
+        """Seek player to specific time in milliseconds"""
+        if self.music.is_playing():
+            self.music.set_time(time_ms)
 
     def round_corners(self, image, radius) -> Image.Image:
         """Rounds Album Cover"""
@@ -207,6 +231,28 @@ class MusicPlayer(ctk.CTk):
         self.playlist_frame = PlaylistFrame(self)
         self.bottom_frame = BottomFrame(self)
         self.cover_art_frame = CoverArtFrame(self)
+        self.lyric_editor_frame = LyricEditor(self)
+        
+        # Create lyric display frame for normal play mode
+        self.lyric_display_frame = ctk.CTkFrame(self)
+        self.lyric_display_frame.grid_columnconfigure(0, weight=1)
+        
+        # Current playback time display
+        self.current_time_label = ctk.CTkLabel(
+            self.lyric_display_frame,
+            text="00:00.000",
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        self.current_time_label.pack(side=tk.TOP, pady=10)
+        
+        self.lyric_display_label = ctk.CTkLabel(
+            self.lyric_display_frame,
+            text="正在播放歌词...",
+            font=ctk.CTkFont(size=16, weight="normal"),
+            justify=tk.CENTER,
+            wraplength=400
+        )
+        self.lyric_display_label.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=20, pady=10)
 
     def setup_keybindings(self):
         """
@@ -226,9 +272,35 @@ class MusicPlayer(ctk.CTk):
         self.topbar.pack(side=tk.TOP, fill=tk.X)
         self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X)
         self.control_bar.pack(side=tk.BOTTOM, fill=tk.X)
-        self.playlist_frame.pack(side=tk.RIGHT)
-        self.cover_art_frame.pack(side=tk.LEFT, padx=10)
+        
+        # Three-column layout: Cover - Lyrics - Playlist
+        self.playlist_frame.pack(side=tk.RIGHT, fill=tk.Y)
+        self.lyric_display_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=20)
+        self.cover_art_frame.pack(side=tk.LEFT, padx=10, pady=20)
         logging.debug("widgets packed")
+
+    def toggle_lyric_editor_mode(self):
+        """Toggle between normal player mode and lyric editor mode"""
+        self.is_editor_mode = not self.is_editor_mode
+        
+        if self.is_editor_mode:
+            # Hide all normal frames
+            self.cover_art_frame.pack_forget()
+            self.playlist_frame.pack_forget()
+            self.lyric_display_frame.pack_forget()
+            
+            # Show lyric editor
+            self.lyric_editor_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+            # Focus on the editor to capture keyboard events
+            self.lyric_editor_frame.text_input.focus_set()
+        else:
+            # Hide lyric editor
+            self.lyric_editor_frame.pack_forget()
+            
+            # Restore normal three-column layout
+            self.playlist_frame.pack(side=tk.RIGHT, fill=tk.Y)
+            self.lyric_display_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=20)
+            self.cover_art_frame.pack(side=tk.LEFT, padx=10, pady=20)
 
     def update_loop(self):
         self.loop.call_soon(self.loop.stop)
