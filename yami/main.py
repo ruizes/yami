@@ -1,16 +1,27 @@
 """Console entry point"""
 
+import sys
 import logging
+import traceback
 from yami.music import MusicPlayer
 
-"""add sys args and logs"""
-
-logging.getLogger().setLevel(logging.DEBUG)
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 def entry():
-    app = MusicPlayer()
-    app.mainloop()
+    try:
+        logger.info("Starting Yami music player...")
+        app = MusicPlayer()
+        app.mainloop()
+    except Exception as e:
+        logger.error(f"Application failed to start: {e}")
+        traceback.print_exc()
+        input("Press Enter to exit...")
 
 
 if __name__ == "__main__":
