@@ -19,6 +19,7 @@ from .playlist import PlaylistFrame
 from .control import ControlBar
 from .cover_art import CoverArtFrame
 from .progress import BottomFrame
+from .lyric_editor import LyricEditor
 from .util import GEOMETRY, TITLE, PlayerState, EVENT_INTERVAL, make_time_string
 
 
@@ -40,6 +41,8 @@ class MusicPlayer(ctk.CTk):
         # STATE
         self.playlist = []
         self.current_folder = ""
+        self.is_editor_mode = False
+        self.lyric_editor_frame = None
 
         self.loop = loop if loop is not None else asyncio.new_event_loop()
         self.downloader = spotdl.Downloader(spotdl.DownloaderOptions(threads=2))
@@ -167,6 +170,15 @@ class MusicPlayer(ctk.CTk):
 
     def get_song_position(self) -> float:
         return self.music.get_position()
+    
+    def get_current_time_ms(self) -> float:
+        """Get current playback time in milliseconds"""
+        return self.music.get_time()
+    
+    def seek_to_time(self, time_ms: int):
+        """Seek player to specific time in milliseconds"""
+        if self.music.is_playing():
+            self.music.set_time(time_ms)
 
     def round_corners(self, image, radius) -> Image.Image:
         """Rounds Album Cover"""
@@ -207,6 +219,7 @@ class MusicPlayer(ctk.CTk):
         self.playlist_frame = PlaylistFrame(self)
         self.bottom_frame = BottomFrame(self)
         self.cover_art_frame = CoverArtFrame(self)
+        self.lyric_editor_frame = LyricEditor(self)
 
     def setup_keybindings(self):
         """
@@ -229,6 +242,33 @@ class MusicPlayer(ctk.CTk):
         self.playlist_frame.pack(side=tk.RIGHT)
         self.cover_art_frame.pack(side=tk.LEFT, padx=10)
         logging.debug("widgets packed")
+
+    def toggle_lyric_editor_mode(self):
+        """Toggle between normal player mode and lyric editor mode"""
+        self.is_editor_mode = not self.is_editor_mode
+        
+        if self.is_editor_mode:
+            # Hide all normal frames
+            self.cover_art_frame.pack_forget()
+            self.playlist_frame.pack_forget()
+            # Hide lyric frame in cover_art_frame
+            if hasattr(self.cover_art_frame, 'lyric_frame'):
+                self.cover_art_frame.lyric_frame.pack_forget()
+            
+            # Show lyric editor
+            self.lyric_editor_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+            # Focus on the editor to capture keyboard events
+            self.lyric_editor_frame.text_input.focus_set()
+        else:
+            # Hide lyric editor
+            self.lyric_editor_frame.pack_forget()
+            
+            # Restore normal frames
+            self.cover_art_frame.pack(side=tk.LEFT, padx=10)
+            self.playlist_frame.pack(side=tk.RIGHT)
+            # Show lyric frame again
+            if hasattr(self.cover_art_frame, 'lyric_frame'):
+                self.cover_art_frame.lyric_frame.pack(fill=tk.BOTH, expand=True)
 
     def update_loop(self):
         self.loop.call_soon(self.loop.stop)
