@@ -33,13 +33,21 @@ class LyricEditor(tk.Frame):
         self.right_panel = ttk.Frame(self)
         self.right_panel.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
         self.right_panel.grid_columnconfigure(0, weight=1)
-        self.right_panel.grid_rowconfigure(0, weight=1)
+        self.right_panel.grid_rowconfigure(1, weight=1)
         
         self.preview_label = ttk.Label(self.right_panel, text="打轴预览（按Down键标记时间）")
         self.preview_label.grid(row=0, column=0, sticky="w", pady=5)
         
+        # Current playback time display
+        self.current_time_display = ttk.Label(
+            self.right_panel, 
+            text="当前时间: 00:00.000", 
+            font=("微软雅黑", 14, "bold")
+        )
+        self.current_time_display.grid(row=1, column=0, sticky="n", pady=5)
+        
         self.preview_frame = ttk.Frame(self.right_panel)
-        self.preview_frame.grid(row=1, column=0, sticky="nsew", pady=5)
+        self.preview_frame.grid(row=2, column=0, sticky="nsew", pady=5)
         self.preview_frame.grid_columnconfigure(0, weight=1)
         self.preview_frame.grid_rowconfigure(0, weight=1)
         
@@ -66,6 +74,9 @@ class LyricEditor(tk.Frame):
         
         # Bind keyboard events
         self.bind_all("<Down>", self._on_down_key)
+        
+        # Start time update loop
+        self._update_time_display()
         
     def _on_text_change(self, event=None):
         if self.text_input.edit_modified():
@@ -94,6 +105,15 @@ class LyricEditor(tk.Frame):
         minutes = int(total_seconds // 60)
         seconds = total_seconds % 60
         return f"{minutes:02d}:{seconds:06.3f}"
+    
+    def _update_time_display(self):
+        try:
+            current_time = self.parent.get_current_time_ms()
+            time_str = self._format_time(current_time)
+            self.current_time_display.configure(text=f"当前时间: {time_str}")
+        except:
+            pass
+        self.after(100, self._update_time_display)
     
     def _parse_time(self, time_str: str) -> float:
         try:
