@@ -10,7 +10,6 @@ import logging
 from mutagen import File, id3
 import customtkinter as ctk
 from PIL import Image, ImageDraw
-import spotdl
 import vlc
 
 
@@ -20,6 +19,7 @@ from .control import ControlBar
 from .cover_art import CoverArtFrame
 from .progress import BottomFrame
 from .util import GEOMETRY, TITLE, PlayerState, EVENT_INTERVAL, make_time_string
+from .lyrics_window import LyricsWindow
 
 
 ctk.set_default_color_theme("yami/data/theme.json")
@@ -42,15 +42,22 @@ class MusicPlayer(ctk.CTk):
         self.current_folder = ""
 
         self.loop = loop if loop is not None else asyncio.new_event_loop()
-        self.downloader = spotdl.Downloader(spotdl.DownloaderOptions(threads=2))
-        spotdl.SpotifyClient.init(
-            "5f573c9620494bae87890c0f08a60293",
-            "212476d9b0f3472eaa762d90b19b0ba8",
-        )
+        self.downloader = None
+        
+        try:
+            import spotdl
+            self.downloader = spotdl.Downloader(spotdl.DownloaderOptions(threads=2))
+            spotdl.SpotifyClient.init(
+                "5f573c9620494bae87890c0f08a60293",
+                "212476d9b0f3472eaa762d90b19b0ba8",
+            )
+        except Exception as e:
+            logging.warning("SpotDL 初始化失败，下载功能将不可用: %s", e)
 
         self.initialize_vlc()
 
-        # TKINTER SETUP
+        self.lyrics_window = None
+
         self.setup_icons()
         self.setup_frames()
         self.setup_widget_packing()
@@ -97,6 +104,19 @@ class MusicPlayer(ctk.CTk):
             self.get_song_artist(),
         )
         self.control_bar.update_play_button()
+        
+        if self.lyrics_window and self.lyrics_window.winfo_exists():
+            self.lyrics_window.load_lyrics_for_current_song()
+
+    def toggle_lyrics_window(self):
+        if self.lyrics_window and self.lyrics_window.winfo_exists():
+            if self.lyrics_window.is_visible:
+                self.lyrics_window.hide_window()
+            else:
+                self.lyrics_window.show_window()
+        else:
+            self.lyrics_window = LyricsWindow(self, self)
+            self.lyrics_window.load_lyrics_for_current_song()
         
     def play_next_song(self, _event=None):
         logging.debug("playing next song due to button press / keybind")
