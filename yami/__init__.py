@@ -1,1 +1,4 @@
-from .music import MusicPlayer
+try:
+    from .music import MusicPlayer
+except ImportError:
+    pass
