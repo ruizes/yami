@@ -229,6 +229,7 @@ STYLE_CONFIGS = {
         "font_family": "Microsoft YaHei",
         "show_controls": False,
         "show_background": False,
+        "show_minimal_controls": True,
         "name": "极简"
     },
     LyricsStyle.GLASS: {
@@ -619,6 +620,75 @@ class LyricsWindow(ctk.CTkToplevel):
             corner_radius=15
         )
         
+        self.minimal_controls_frame = ctk.CTkFrame(self.main_frame, fg_color="#222222", corner_radius=10)
+        
+        self.minimal_style_menu = ctk.CTkOptionMenu(
+            self.minimal_controls_frame,
+            values=["现代", "经典", "极简", "玻璃"],
+            command=self.on_style_change,
+            width=70,
+            height=26,
+            font=("Microsoft YaHei", 10),
+            fg_color="#222222",
+            button_color="#333333",
+            button_hover_color="#444444",
+            dropdown_fg_color="#222222"
+        )
+        self.minimal_style_menu.pack(side="left", padx=3)
+        
+        self.minimal_font_menu = ctk.CTkOptionMenu(
+            self.minimal_controls_frame,
+            values=["16", "20", "24", "28", "32", "36", "40", "48"],
+            command=self._on_minimal_font_change,
+            width=50,
+            height=26,
+            font=("Microsoft YaHei", 10),
+            fg_color="#222222",
+            button_color="#333333",
+            button_hover_color="#444444",
+            dropdown_fg_color="#222222"
+        )
+        self.minimal_font_menu.pack(side="left", padx=3)
+        
+        self.minimal_lock_btn = ctk.CTkButton(
+            self.minimal_controls_frame,
+            text="🔒",
+            command=self.toggle_lock,
+            width=40,
+            height=26,
+            font=("Microsoft YaHei", 10),
+            fg_color="#222222",
+            hover_color="#333333",
+            text_color="#ffffff"
+        )
+        self.minimal_lock_btn.pack(side="left", padx=3)
+        
+        self.minimal_play_btn = ctk.CTkButton(
+            self.minimal_controls_frame,
+            text="▶",
+            command=self.play_pause,
+            width=40,
+            height=26,
+            font=("Microsoft YaHei", 12),
+            fg_color="#222222",
+            hover_color="#333333",
+            text_color="#ffffff"
+        )
+        self.minimal_play_btn.pack(side="left", padx=3)
+        
+        self.minimal_close_btn2 = ctk.CTkButton(
+            self.minimal_controls_frame,
+            text="✕",
+            command=self.destroy_lyrics_window,
+            width=40,
+            height=26,
+            font=("Microsoft YaHei", 12),
+            fg_color="#222222",
+            hover_color="#442222",
+            text_color="#ff6666"
+        )
+        self.minimal_close_btn2.pack(side="left", padx=3)
+        
         self.lyrics_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         self.lyrics_frame.pack(fill="both", expand=True, padx=30, pady=10)
         
@@ -747,10 +817,14 @@ class LyricsWindow(ctk.CTkToplevel):
             self.header_frame.pack(fill="x", padx=15, pady=(10, 0), before=self.lyrics_frame)
             self.controls_frame.pack(fill="x", padx=20, pady=(0, 10), after=self.lyrics_frame)
             self.minimal_close_btn.pack_forget()
+            self.minimal_controls_frame.pack_forget()
         else:
             self.header_frame.pack_forget()
             self.controls_frame.pack_forget()
-            self.minimal_close_btn.pack(side="top", anchor="ne", padx=10, pady=5)
+            self.minimal_close_btn.pack_forget()
+            
+            if config.get("show_minimal_controls", False):
+                self.minimal_controls_frame.pack(side="top", anchor="ne", padx=15, pady=10, before=self.lyrics_frame)
         
         self._update_window_size()
 
@@ -767,16 +841,29 @@ class LyricsWindow(ctk.CTkToplevel):
     def on_size_change(self, value):
         self.font_size = int(value)
         self.size_value.configure(text=str(self.font_size))
+        if hasattr(self, 'minimal_font_menu'):
+            self.minimal_font_menu.set(str(self.font_size))
+        self.apply_style()
+
+    def _on_minimal_font_change(self, choice):
+        self.font_size = int(choice)
+        if hasattr(self, 'size_slider'):
+            self.size_slider.set(self.font_size)
+            self.size_value.configure(text=str(self.font_size))
         self.apply_style()
 
     def toggle_lock(self):
         self.is_locked = not self.is_locked
         if self.is_locked:
             self.lock_btn.configure(text="🔓 解锁")
+            if hasattr(self, 'minimal_lock_btn'):
+                self.minimal_lock_btn.configure(text="🔓")
             self.attributes("-topmost", True)
             logging.info("窗口已锁定")
         else:
             self.lock_btn.configure(text="🔒 锁定")
+            if hasattr(self, 'minimal_lock_btn'):
+                self.minimal_lock_btn.configure(text="🔒")
             logging.info("窗口已解锁")
 
     def hide_window(self):
@@ -838,10 +925,18 @@ class LyricsWindow(ctk.CTkToplevel):
 
     def update_play_button(self):
         try:
-            if self.music_player._is_playing:
+            is_playing = False
+            if hasattr(self.music_player, '_is_playing'):
+                is_playing = self.music_player._is_playing
+            
+            if is_playing:
                 self.play_pause_btn.configure(image=self.pause_icon)
+                if hasattr(self, 'minimal_play_btn'):
+                    self.minimal_play_btn.configure(text="⏸")
             else:
                 self.play_pause_btn.configure(image=self.play_icon)
+                if hasattr(self, 'minimal_play_btn'):
+                    self.minimal_play_btn.configure(text="▶")
         except Exception:
             pass
 

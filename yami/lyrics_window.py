@@ -294,7 +294,7 @@ class LyricsWindow(ctk.CTkToplevel):
             corner_radius=15
         )
         
-        self.minimal_controls_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.minimal_controls_frame = ctk.CTkFrame(self.main_frame, fg_color="#222222", corner_radius=10)
         
         self.minimal_style_menu = ctk.CTkOptionMenu(
             self.minimal_controls_frame,
@@ -498,7 +498,7 @@ class LyricsWindow(ctk.CTkToplevel):
             self.minimal_close_btn.pack_forget()
             
             if config.get("show_minimal_controls", False):
-                self.minimal_controls_frame.pack(side="top", anchor="ne", padx=10, pady=5)
+                self.minimal_controls_frame.pack(side="top", anchor="ne", padx=15, pady=10, before=self.lyrics_frame)
         
         self._update_window_size()
 
