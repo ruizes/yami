@@ -8,10 +8,6 @@ import os
 from pathlib import Path
 
 import customtkinter as ctk
-import spotdl.utils
-import spotdl.utils.formatter
-import spotdl.utils.search
-import spotdl
 import vlc
 
 from .util import SUPPORTED_FORMATS
@@ -42,6 +38,15 @@ class TopBar(ctk.CTkFrame):
             command=self.prompt_download,
         )
 
+        self.lyrics_btn = ctk.CTkButton(
+            self,
+            text="歌词",
+            font=("roboto", 15),
+            width=70,
+            image=parent.music_icon,
+            command=self.toggle_lyrics,
+        )
+
         self.yami = ctk.CTkButton(
             self,
             text="About",
@@ -53,8 +58,12 @@ class TopBar(ctk.CTkFrame):
         # WIDGET PLACEMENT
         self.open_folder.grid(row=0, column=1, sticky="w", pady=5, padx=10)
         self.music_downloader.grid(row=0, column=2, sticky="w", pady=5, padx=10)
-        self.yami.grid(row=0, column=3, sticky="w", pady=5, padx=10)
+        self.lyrics_btn.grid(row=0, column=3, sticky="w", pady=5, padx=10)
+        self.yami.grid(row=0, column=4, sticky="w", pady=5, padx=10)
         logging.debug("initialized topbar")
+
+    def toggle_lyrics(self):
+        self.parent.toggle_lyrics_window()
 
     # FOR ADDING SONGS TO PLAYLIST
     """TODO MAKE IT SMALLER AND SIMPLER"""
@@ -114,6 +123,10 @@ class TopBar(ctk.CTkFrame):
 
     async def download_song(self, song_url):
         try:
+            import spotdl
+            import spotdl.utils.search
+            import spotdl.utils.formatter
+            
             logging.info("searching %s", song_url)
 
             # ASYNC UNTIL DOWNLOAD GETS OVER
@@ -141,7 +154,8 @@ class TopBar(ctk.CTkFrame):
         except Exception as e:
             logging.error(e)
 
-        self.parent.playlist.append(self.downloaded_song_path)
-        self.parent.playlist_frame.song_list.insert(
-            "end", f"• {Path(self.downloaded_song_path).stem}"
-        )
+        if hasattr(self, 'downloaded_song_path'):
+            self.parent.playlist.append(self.downloaded_song_path)
+            self.parent.playlist_frame.song_list.insert(
+                "end", f"• {Path(self.downloaded_song_path).stem}"
+            )
