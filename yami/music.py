@@ -11,7 +11,7 @@ from mutagen import File, id3
 import customtkinter as ctk
 from PIL import Image, ImageDraw
 import spotdl
-import vlc
+import pygame
 
 
 from .topbar import TopBar
@@ -19,7 +19,10 @@ from .playlist import PlaylistFrame
 from .control import ControlBar
 from .cover_art import CoverArtFrame
 from .progress import BottomFrame
+from .sidebar import SidebarFrame
 from .util import GEOMETRY, TITLE, PlayerState, EVENT_INTERVAL, make_time_string
+from .classification import ClassificationManager, SongInfo, Genre, ListeningMode
+from .audio_player import AudioPlayer, VLCCompatPlayer, State
 
 
 ctk.set_default_color_theme("yami/data/theme.json")
@@ -40,15 +43,25 @@ class MusicPlayer(ctk.CTk):
         # STATE
         self.playlist = []
         self.current_folder = ""
+        self.classification_manager = ClassificationManager()
+        self.filtered_playlist = []
 
         self.loop = loop if loop is not None else asyncio.new_event_loop()
-        self.downloader = spotdl.Downloader(spotdl.DownloaderOptions(threads=2))
-        spotdl.SpotifyClient.init(
-            "5f573c9620494bae87890c0f08a60293",
-            "212476d9b0f3472eaa762d90b19b0ba8",
-        )
+        
+        # Try to initialize spotdl downloader (optional, requires ffmpeg)
+        self.downloader = None
+        try:
+            self.downloader = spotdl.Downloader(spotdl.DownloaderOptions(threads=2))
+            spotdl.SpotifyClient.init(
+                "5f573c9620494bae87890c0f08a60293",
+                "212476d9b0f3472eaa762d90b19b0ba8",
+            )
+            logging.info("Spotdl downloader initialized successfully")
+        except Exception as e:
+            logging.warning("Spotdl downloader not available (ffmpeg may be missing): %s", e)
+            logging.warning("Download feature will be disabled, but all other features work normally")
 
-        self.initialize_vlc()
+        self.initialize_audio_player()
 
         # TKINTER SETUP
         self.setup_icons()
@@ -57,21 +70,17 @@ class MusicPlayer(ctk.CTk):
 
         self.setup_keybindings()
 
-        self.event_manager = self.music_list_player.event_manager()
-        self.event_manager.event_attach(
-            vlc.EventType.MediaListPlayerNextItemSet, self.change_info
-        )
         self.update_loop()
         self.after(EVENT_INTERVAL, self.update)
 
     def update(self, event=None):
-        if self.music_list_player.get_state() == vlc.State.Playing:
+        if self.music_list_player.get_state() == State.Playing:
 
             song_position = self.music.get_position()
             self.bottom_frame.progress_bar.set(song_position)
 
             self.control_bar.playback_label.configure(
-                text=make_time_string(song_position, self.music.get_length() // 1000)
+                text=make_time_string(song_position, self.music.get_length())
             )
         self.after(EVENT_INTERVAL, self.update)
 
@@ -104,7 +113,10 @@ class MusicPlayer(ctk.CTk):
         self.change_info()
         # UPDATE SELECTION
         self.playlist_frame.song_list.selection_clear(0, tk.END)
-        self.playlist_index+=1
+        self.playlist_index += 1
+        # Handle wrap-around
+        if self.playlist_index >= len(self.filtered_playlist):
+            self.playlist_index = 0
         self.playlist_frame.song_list.select_set(self.playlist_index)
 
     def play_previous(self, event=None):
@@ -113,54 +125,81 @@ class MusicPlayer(ctk.CTk):
         self.change_info()
         # UPDATE SELECTION
         self.playlist_frame.song_list.selection_clear(0, tk.END)
-        self.playlist_index-=1
+        self.playlist_index -= 1
+        # Handle wrap-around
+        if self.playlist_index < 0:
+            self.playlist_index = len(self.filtered_playlist) - 1 if self.filtered_playlist else 0
         self.playlist_frame.song_list.select_set(self.playlist_index)
 
     def get_song_length(self) -> int:
         logging.debug("got song length")
-        return self.music.get_length()
+        return int(self.music.get_length())
 
     def get_song_title(self) -> str:
-        media = self.music_list_player.get_media_player().get_media()
-        logging.debug("got song title")
+        if not self.filtered_playlist:
+            return ""
+        
         try:
-            if media.is_parsed():
-                return media.get_meta(0)
-            else:
-                media.parse()
-                return media.get_meta(0)
+            idx = self.music.get_current_index()
+            if idx < 0 or idx >= len(self.filtered_playlist):
+                return ""
+            
+            song = self.filtered_playlist[idx]
+            if song.title:
+                return song.title
+            
+            # Try to get from audio player's metadata
+            return self.music.get_meta(0)
         except Exception as e:
             logging.exception(e)
             return ""
 
     def get_album_cover(self) -> ctk.CTkImage | None:
         try:
-            media = self.music_list_player.get_media_player().get_media()
-            media.parse()
-            logging.debug("got album cover")
-            return ctk.CTkImage(
-                self.round_corners(
-                    Image.open(
-                        Path.from_uri(media.get_meta(15))
-                    ),  # gives the direct uri to cover jpg
-                    20,
-                ),
-                size=(250, 250),
-            )
+            # Use default cover image
+            default_cover_path = Path("yami/data/cover.png")
+            if default_cover_path.exists():
+                return ctk.CTkImage(
+                    self.round_corners(
+                        Image.open(default_cover_path),
+                        20,
+                    ),
+                    size=(250, 250),
+                )
         except Exception as e:
             logging.exception(e)
-            return
-        return
+        
+        try:
+            # Fallback to default image
+            default_image = Path("yami/data/default.png")
+            if default_image.exists():
+                return ctk.CTkImage(
+                    self.round_corners(
+                        Image.open(default_image),
+                        20,
+                    ),
+                    size=(250, 250),
+                )
+        except Exception as e:
+            logging.exception(e)
+        
+        return None
 
     def get_song_artist(self) -> str:
-        media = self.music_list_player.get_media_player().get_media()
-        logging.debug("got song artist")
+        if not self.filtered_playlist:
+            return ""
+        
         try:
-            if media.is_parsed():
-                return media.get_meta(1)
-            else:
-                media.parse()
-                return media.get_meta(1)
+            idx = self.music.get_current_index()
+            if idx < 0 or idx >= len(self.filtered_playlist):
+                return ""
+            
+            song = self.filtered_playlist[idx]
+            if song.artist:
+                return song.artist
+            
+            # Try to get from audio player's metadata
+            return self.music.get_meta(1)
         except Exception as e:
             logging.exception(e)
             return ""
@@ -180,17 +219,17 @@ class MusicPlayer(ctk.CTk):
 
         return rounded_image
 
-    def initialize_vlc(self):
+    def initialize_audio_player(self):
         """initializes and creates
-        :param `self.music_list_player`: vlc.MediaListPlayer
-        :param `self.music`:             vlc.MediaPlayer
-        :param `self.vlc_instance`:      vlc.Instance
-        :returns: some vlc attributes
+        :param `self.music_list_player`: audio player with VLC-compatible interface
+        :param `self.music`:             audio player
+        :param `self.vlc_instance`:      compatibility instance
+        :returns: some audio attributes
         """
-        self.music_list_player: vlc.MediaListPlayer = vlc.MediaListPlayer()
-        self.music: vlc.MediaPlayer = self.music_list_player.get_media_player()
-        self.vlc_instance: vlc.Instance = self.music_list_player.get_instance()
-        logging.debug("initialized vlc")
+        self.music_list_player = VLCCompatPlayer()
+        self.music = self.music_list_player.music
+        self.vlc_instance = self.music_list_player.vlc_instance
+        logging.debug("initialized pygame audio player")
 
     def setup_icons(self):
         self.play_icon = ctk.CTkImage(Image.open("yami/data/play_arrow.png"))
@@ -207,6 +246,7 @@ class MusicPlayer(ctk.CTk):
         self.playlist_frame = PlaylistFrame(self)
         self.bottom_frame = BottomFrame(self)
         self.cover_art_frame = CoverArtFrame(self)
+        self.sidebar_frame = SidebarFrame(self)
 
     def setup_keybindings(self):
         """
@@ -226,8 +266,9 @@ class MusicPlayer(ctk.CTk):
         self.topbar.pack(side=tk.TOP, fill=tk.X)
         self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X)
         self.control_bar.pack(side=tk.BOTTOM, fill=tk.X)
-        self.playlist_frame.pack(side=tk.RIGHT)
-        self.cover_art_frame.pack(side=tk.LEFT, padx=10)
+        self.sidebar_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(5, 0), pady=5)
+        self.playlist_frame.pack(side=tk.RIGHT, padx=(0, 5), pady=5)
+        self.cover_art_frame.pack(side=tk.LEFT, padx=10, pady=5, fill=tk.BOTH, expand=True)
         logging.debug("widgets packed")
 
     def update_loop(self):
