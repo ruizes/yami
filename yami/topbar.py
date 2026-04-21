@@ -15,6 +15,7 @@ import spotdl
 import vlc
 
 from .util import SUPPORTED_FORMATS
+from .classification import SongInfo, Genre
 
 
 class TopBar(ctk.CTkFrame):
@@ -67,11 +68,12 @@ class TopBar(ctk.CTkFrame):
         if not self.parent.current_folder:
             return
 
-        # CLEAR PLAYLIST AND LISTBOX
+        # CLEAR PLAYLIST, LISTBOX AND CLASSIFICATION DATA
         self.parent.playlist_frame.song_list.delete(0, tk.END)
         self.parent.media_list: vlc.MediaList = (
             self.parent.vlc_instance.media_list_new()
         )
+        self.parent.classification_manager.clear()
 
         self.parent.music_list_player.set_media_list(self.parent.media_list)
 
@@ -83,11 +85,36 @@ class TopBar(ctk.CTkFrame):
                 file_path = os.path.join(root, file)
                 media = self.parent.vlc_instance.media_new(file_path)
                 artistname, title = self.get_name_and_title_of_media(media)
+                
+                # Create SongInfo and classify
+                song_info = SongInfo(
+                    file_path=file_path,
+                    title=title or "",
+                    artist=artistname or "",
+                    filename=file
+                )
+                # Auto-classify based on filename and metadata
+                song_info.genre = self.parent.classification_manager.classify_song_by_content(song_info)
+                self.parent.classification_manager.add_song(song_info)
+                
                 self.parent.media_list.add_media(media)
                 self.parent.playlist_frame.song_list.insert(
                     "end", f"• {title} - {artistname}"
                 )
+        
+        # Update filtered playlist
+        self.parent.filtered_playlist = self.parent.classification_manager.all_songs.copy()
+        
+        # Update sidebar if it exists
+        if hasattr(self.parent, 'sidebar_frame'):
+            self.parent.sidebar_frame.refresh_artist_list()
+            self.parent.sidebar_frame.refresh_genre_list()
+        
         os.chdir(self.parent.current_folder)
+        logging.info("Loaded %d songs, grouped into %d artists and %d genres", 
+                     len(self.parent.classification_manager.all_songs),
+                     len(self.parent.classification_manager.songs_by_artist),
+                     len(self.parent.classification_manager.songs_by_genre))
 
     def prompt_download(self):
         if not self.parent.current_folder:

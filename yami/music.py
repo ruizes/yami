@@ -19,7 +19,9 @@ from .playlist import PlaylistFrame
 from .control import ControlBar
 from .cover_art import CoverArtFrame
 from .progress import BottomFrame
+from .sidebar import SidebarFrame
 from .util import GEOMETRY, TITLE, PlayerState, EVENT_INTERVAL, make_time_string
+from .classification import ClassificationManager, SongInfo, Genre, ListeningMode
 
 
 ctk.set_default_color_theme("yami/data/theme.json")
@@ -40,6 +42,8 @@ class MusicPlayer(ctk.CTk):
         # STATE
         self.playlist = []
         self.current_folder = ""
+        self.classification_manager = ClassificationManager()
+        self.filtered_playlist = []
 
         self.loop = loop if loop is not None else asyncio.new_event_loop()
         self.downloader = spotdl.Downloader(spotdl.DownloaderOptions(threads=2))
@@ -207,6 +211,7 @@ class MusicPlayer(ctk.CTk):
         self.playlist_frame = PlaylistFrame(self)
         self.bottom_frame = BottomFrame(self)
         self.cover_art_frame = CoverArtFrame(self)
+        self.sidebar_frame = SidebarFrame(self)
 
     def setup_keybindings(self):
         """
@@ -226,8 +231,9 @@ class MusicPlayer(ctk.CTk):
         self.topbar.pack(side=tk.TOP, fill=tk.X)
         self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X)
         self.control_bar.pack(side=tk.BOTTOM, fill=tk.X)
-        self.playlist_frame.pack(side=tk.RIGHT)
-        self.cover_art_frame.pack(side=tk.LEFT, padx=10)
+        self.sidebar_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(5, 0), pady=5)
+        self.playlist_frame.pack(side=tk.RIGHT, padx=(0, 5), pady=5)
+        self.cover_art_frame.pack(side=tk.LEFT, padx=10, pady=5, fill=tk.BOTH, expand=True)
         logging.debug("widgets packed")
 
     def update_loop(self):
