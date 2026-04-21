@@ -246,15 +246,12 @@ class SidebarFrame(ctk.CTkFrame):
         # Clear playlist UI
         self.parent.playlist_frame.song_list.delete(0, tk.END)
 
-        # Create new media list
-        self.parent.media_list = self.parent.vlc_instance.media_list_new()
+        # Create new media list (simple list of file paths)
+        self.parent.media_list = [song.file_path for song in songs]
         self.parent.music_list_player.set_media_list(self.parent.media_list)
 
         # Add filtered songs to playlist
         for song in songs:
-            media = self.parent.vlc_instance.media_new(song.file_path)
-            self.parent.media_list.add_media(media)
-
             # Use actual metadata
             artist = song.artist or "Unknown Artist"
             title = song.title or song.filename
