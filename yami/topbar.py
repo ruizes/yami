@@ -34,14 +34,28 @@ class TopBar(ctk.CTkFrame):
             width=70,
             image=parent.folder_icon,
         )
-        self.music_downloader = ctk.CTkButton(
-            self,
-            text="Download",
-            font=("roboto", 15),
-            width=70,
-            image=parent.music_icon,
-            command=self.prompt_download,
-        )
+        
+        # Download button - only enabled if downloader is available
+        if hasattr(parent, 'downloader') and parent.downloader is not None:
+            self.music_downloader = ctk.CTkButton(
+                self,
+                text="Download",
+                font=("roboto", 15),
+                width=70,
+                image=parent.music_icon,
+                command=self.prompt_download,
+            )
+        else:
+            self.music_downloader = ctk.CTkButton(
+                self,
+                text="Download",
+                font=("roboto", 15),
+                width=70,
+                image=parent.music_icon,
+                state="disabled",
+                fg_color="#555555",
+                hover_color="#555555",
+            )
 
         self.yami = ctk.CTkButton(
             self,
@@ -121,6 +135,10 @@ class TopBar(ctk.CTkFrame):
                      len(self.parent.classification_manager.songs_by_genre))
 
     def prompt_download(self):
+        if self.parent.downloader is None:
+            logging.warning("Downloader not available (ffmpeg may be missing)")
+            return
+            
         if not self.parent.current_folder:
             self.choose_folder()
         song_url = simpledialog.askstring(

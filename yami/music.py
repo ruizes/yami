@@ -47,11 +47,19 @@ class MusicPlayer(ctk.CTk):
         self.filtered_playlist = []
 
         self.loop = loop if loop is not None else asyncio.new_event_loop()
-        self.downloader = spotdl.Downloader(spotdl.DownloaderOptions(threads=2))
-        spotdl.SpotifyClient.init(
-            "5f573c9620494bae87890c0f08a60293",
-            "212476d9b0f3472eaa762d90b19b0ba8",
-        )
+        
+        # Try to initialize spotdl downloader (optional, requires ffmpeg)
+        self.downloader = None
+        try:
+            self.downloader = spotdl.Downloader(spotdl.DownloaderOptions(threads=2))
+            spotdl.SpotifyClient.init(
+                "5f573c9620494bae87890c0f08a60293",
+                "212476d9b0f3472eaa762d90b19b0ba8",
+            )
+            logging.info("Spotdl downloader initialized successfully")
+        except Exception as e:
+            logging.warning("Spotdl downloader not available (ffmpeg may be missing): %s", e)
+            logging.warning("Download feature will be disabled, but all other features work normally")
 
         self.initialize_audio_player()
 
