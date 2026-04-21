@@ -2,7 +2,7 @@ from enum import Enum
 
 SUPPORTED_FORMATS = (".mp3", ".ogg", ".wav", ".m4a", ".opus")
 BUTTON_WIDTH = 10
-GEOMETRY = "800x500"
+GEOMETRY = "1100x650"
 TITLE = "Music Player"
 EVENT_INTERVAL = 100
 
